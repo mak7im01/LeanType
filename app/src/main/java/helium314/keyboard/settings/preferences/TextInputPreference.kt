@@ -15,7 +15,12 @@ import helium314.keyboard.settings.dialogs.TextInputDialog
 import androidx.core.content.edit
 
 @Composable
-fun TextInputPreference(setting: Setting, default: String, checkTextValid: (String) -> Boolean = { true }) {
+fun TextInputPreference(
+    setting: Setting,
+    default: String,
+    checkTextValid: (String) -> Boolean = { true },
+    onConfirmed: (String) -> Unit = { }
+) {
     var showDialog by rememberSaveable { mutableStateOf(false) }
     val prefs = LocalContext.current.prefs()
     Preference(
@@ -28,6 +33,7 @@ fun TextInputPreference(setting: Setting, default: String, checkTextValid: (Stri
             onDismissRequest = { showDialog = false },
             onConfirmed = {
                 prefs.edit { putString(setting.key, it) }
+                onConfirmed(it)
                 KeyboardSwitcher.getInstance().setThemeNeedsReload()
             },
             initialText = prefs.getString(setting.key, default) ?: "",

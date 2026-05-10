@@ -264,9 +264,13 @@ fun WelcomeWizard(
                         { step-- }
                     ) {
                         if (BuildConfig.FLAVOR == "standard") {
-                            val provider = ctx.prefs().getString(helium314.keyboard.settings.SettingsWithoutKey.AI_PROVIDER, "") ?: ""
-                            val apiKey = ctx.prefs().getString(helium314.keyboard.settings.SettingsWithoutKey.GEMINI_API_KEY, "") ?: ""
-                            val aiConfigured = provider.isNotEmpty() && apiKey.isNotEmpty()
+                            val service = remember { helium314.keyboard.latin.utils.ProofreadService(ctx) }
+                            val currentProvider = service.getProvider()
+                            val aiConfigured = when (currentProvider) {
+                                helium314.keyboard.latin.utils.ProofreadService.AIProvider.GEMINI -> service.hasApiKey()
+                                helium314.keyboard.latin.utils.ProofreadService.AIProvider.GROQ -> service.getGroqToken() != null
+                                helium314.keyboard.latin.utils.ProofreadService.AIProvider.OPENAI -> service.getHuggingFaceToken() != null
+                            }
 
                             Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium)) {
                                 Column {
@@ -275,11 +279,38 @@ fun WelcomeWizard(
                                             ctx.getString(R.string.ai_provider_huggingface) to helium314.keyboard.latin.utils.ProofreadService.AIProvider.GROQ.name,
                                             ctx.getString(R.string.ai_provider_gemini) to helium314.keyboard.latin.utils.ProofreadService.AIProvider.GEMINI.name,
                                             ctx.getString(R.string.ai_provider_openai) to helium314.keyboard.latin.utils.ProofreadService.AIProvider.OPENAI.name
-                                        ), helium314.keyboard.latin.utils.ProofreadService.AIProvider.GEMINI.name)
+                                        ), service.getProvider().name, onChanged = {
+                                            service.setProvider(helium314.keyboard.latin.utils.ProofreadService.AIProvider.valueOf(it))
+                                            refreshTrigger++
+                                        })
                                     }.Preference()
-                                    helium314.keyboard.settings.Setting(ctx, helium314.keyboard.settings.SettingsWithoutKey.GEMINI_API_KEY, R.string.gemini_api_key_title, R.string.gemini_api_key_summary) { setting ->
-                                        TextInputPreference(setting, "")
-                                    }.Preference()
+                                    
+                                    when (service.getProvider()) {
+                                        helium314.keyboard.latin.utils.ProofreadService.AIProvider.GEMINI -> {
+                                            helium314.keyboard.settings.Setting(ctx, helium314.keyboard.settings.SettingsWithoutKey.GEMINI_API_KEY, R.string.gemini_api_key_title, R.string.gemini_api_key_summary) { setting ->
+                                                TextInputPreference(setting, service.getApiKey() ?: "", onConfirmed = {
+                                                    service.setApiKey(it)
+                                                    refreshTrigger++
+                                                })
+                                            }.Preference()
+                                        }
+                                        helium314.keyboard.latin.utils.ProofreadService.AIProvider.GROQ -> {
+                                            helium314.keyboard.settings.Setting(ctx, helium314.keyboard.settings.SettingsWithoutKey.GROQ_TOKEN, R.string.groq_token_title, R.string.groq_token_summary) { setting ->
+                                                TextInputPreference(setting, service.getGroqToken() ?: "", onConfirmed = {
+                                                    service.setGroqToken(it)
+                                                    refreshTrigger++
+                                                })
+                                            }.Preference()
+                                        }
+                                        helium314.keyboard.latin.utils.ProofreadService.AIProvider.OPENAI -> {
+                                            helium314.keyboard.settings.Setting(ctx, helium314.keyboard.settings.SettingsWithoutKey.HUGGINGFACE_TOKEN, R.string.huggingface_token_title, R.string.huggingface_token_summary) { setting ->
+                                                TextInputPreference(setting, service.getHuggingFaceToken() ?: "", onConfirmed = {
+                                                    service.setHuggingFaceToken(it)
+                                                    refreshTrigger++
+                                                })
+                                            }.Preference()
+                                        }
+                                    }
                                 }
                                 if (aiConfigured) {
                                     Icon(painterResource(R.drawable.ic_setup_check), null, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp), tint = MaterialTheme.colorScheme.primary)
