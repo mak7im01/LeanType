@@ -121,11 +121,17 @@ fun WelcomeWizard(
         }
     }
     @Composable
-    fun ColumnScope.Step(currentStep: Int, title: String, instruction: String, actionText: String, icon: Painter, action: () -> Unit, content: @Composable () -> Unit = {}) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("1", color = if (currentStep == 1) titleColor else textColorDim)
-            Text("2", color = if (currentStep == 2) titleColor else textColorDim)
-            Text("3+", color = if (currentStep >= 3) titleColor else textColorDim)
+    fun ColumnScope.Step(currentStep: Int, title: String, instruction: String, actionText: String, icon: Painter, action: () -> Unit, onSkip: (() -> Unit)? = null, onBack: (() -> Unit)? = null, content: @Composable () -> Unit = {}) {
+        Row(Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+            for (i in 1..8) {
+                Box(
+                    modifier = Modifier
+                        .height(4.dp)
+                        .weight(1f)
+                        .padding(horizontal = 2.dp)
+                        .background(if (i <= currentStep) titleColor else textColorDim)
+                )
+            }
         }
         Column(Modifier
             .background(color = stepBackgroundColor)
@@ -138,15 +144,32 @@ fun WelcomeWizard(
         }
         Spacer(Modifier.height(4.dp))
         Row(
-            Modifier.clickable { action() }
-                .background(color = stepBackgroundColor)
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+            Modifier.fillMaxWidth().background(color = stepBackgroundColor).padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Icon(icon, null, Modifier.padding(end = 6.dp).size(32.dp), tint = textColor)
-            Text(actionText, Modifier.weight(1f))
-            if (currentStep >= 3 && currentStep < 8) {
-                Text(stringResource(android.R.string.cancel), color = textColorDim, modifier = Modifier.padding(start = 8.dp))
+            if (onBack != null) {
+                Text(
+                    "Back", 
+                    color = textColor, 
+                    modifier = Modifier.clickable { onBack() }.padding(end = 16.dp)
+                )
+            }
+            
+            Row(
+                Modifier.clickable { action() }.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(icon, null, Modifier.padding(end = 6.dp).size(32.dp), tint = textColor)
+                Text(actionText, color = textColor)
+            }
+            
+            if (onSkip != null) {
+                Text(
+                    "Skip", 
+                    color = textColorDim, 
+                    modifier = Modifier.clickable { onSkip() }.padding(start = 16.dp)
+                )
             }
         }
     }
@@ -160,7 +183,7 @@ fun WelcomeWizard(
                 }
                 if (step == 1) {
                     Step(
-                        step,
+                        1,
                         stringResource(R.string.setup_step1_title, appName),
                         stringResource(R.string.setup_step1_instruction, appName),
                         stringResource(R.string.setup_step1_action),
@@ -170,131 +193,197 @@ fun WelcomeWizard(
                             intent.action = AndroidSettings.ACTION_INPUT_METHOD_SETTINGS
                             intent.addCategory(Intent.CATEGORY_DEFAULT)
                             launcher.launch(intent)
-                        }
+                        },
+                        null,
+                        null
                     )
                 } else if (step == 2) {
                     Step(
-                        step,
+                        2,
                         stringResource(R.string.setup_step2_title, appName),
                         stringResource(R.string.setup_step2_instruction, appName),
                         stringResource(R.string.setup_step2_action),
                         painterResource(R.drawable.ic_setup_select),
-                        { imm.showInputMethodPicker() }
+                        { imm.showInputMethodPicker() },
+                        null,
+                        null
                     )
                 } else if (step == 3) {
                     Step(
-                        step,
+                        3,
                         "Libraries",
                         "Download emoji and gesture libraries to improve typing and suggestions.",
                         "Next",
                         painterResource(R.drawable.sym_keyboard_language_switch),
-                        { step++ }
+                        { step++ },
+                        { step++ },
+                        null
                     ) {
-                        LoadEmojiLibPreference("Emoji Dictionary")
-                        LoadGestureLibPreference("Gesture Typing Library")
+                        val locale = helium314.keyboard.latin.RichInputMethodManager.getInstance().currentSubtype.locale
+                        val emojiLibInstalled = java.io.File(helium314.keyboard.latin.utils.DictionaryInfoUtils.getCacheDirectoryForLocale(locale, ctx), "emoji_${locale.language}.dict").exists()
+                        val gestureLibInstalled = java.io.File(ctx.filesDir, "libjni_latinime.so").exists() || helium314.keyboard.latin.utils.JniUtils.sHaveGestureLib
+
+                        Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium)) {
+                            LoadEmojiLibPreference("Emoji Dictionary")
+                            if (emojiLibInstalled) {
+                                Icon(painterResource(R.drawable.ic_setup_check), null, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp), tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium)) {
+                            LoadGestureLibPreference("Gesture Typing Library")
+                            if (gestureLibInstalled) {
+                                Icon(painterResource(R.drawable.ic_setup_check), null, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp), tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
                     }
                 } else if (step == 4) {
                     Step(
-                        step,
+                        4,
                         "AI Integration",
                         "Select an AI service and provide your API key for advanced proofreading features.",
                         "Next",
                         painterResource(R.drawable.sym_keyboard_language_switch),
-                        { step++ }
+                        { step++ },
+                        { step++ },
+                        { step-- }
                     ) {
                         if (BuildConfig.FLAVOR == "standard") {
-                            helium314.keyboard.settings.Setting(ctx, helium314.keyboard.settings.SettingsWithoutKey.AI_PROVIDER, R.string.ai_provider_title, R.string.ai_provider_summary) { setting ->
-                                ListPreference(setting, listOf(
-                                    ctx.getString(R.string.ai_provider_huggingface) to helium314.keyboard.latin.utils.ProofreadService.AIProvider.GROQ.name,
-                                    ctx.getString(R.string.ai_provider_gemini) to helium314.keyboard.latin.utils.ProofreadService.AIProvider.GEMINI.name,
-                                    ctx.getString(R.string.ai_provider_openai) to helium314.keyboard.latin.utils.ProofreadService.AIProvider.OPENAI.name
-                                ), helium314.keyboard.latin.utils.ProofreadService.AIProvider.GEMINI.name)
-                            }.Preference()
-                            helium314.keyboard.settings.Setting(ctx, helium314.keyboard.settings.SettingsWithoutKey.GEMINI_API_KEY, R.string.gemini_api_key_title, R.string.gemini_api_key_summary) { setting ->
-                                TextInputPreference(setting, "")
-                            }.Preference()
+                            val provider = ctx.prefs().getString(helium314.keyboard.settings.SettingsWithoutKey.AI_PROVIDER, "") ?: ""
+                            val apiKey = ctx.prefs().getString(helium314.keyboard.settings.SettingsWithoutKey.GEMINI_API_KEY, "") ?: ""
+                            val aiConfigured = provider.isNotEmpty() && apiKey.isNotEmpty()
+
+                            Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium)) {
+                                Column {
+                                    helium314.keyboard.settings.Setting(ctx, helium314.keyboard.settings.SettingsWithoutKey.AI_PROVIDER, R.string.ai_provider_title, R.string.ai_provider_summary) { setting ->
+                                        ListPreference(setting, listOf(
+                                            ctx.getString(R.string.ai_provider_huggingface) to helium314.keyboard.latin.utils.ProofreadService.AIProvider.GROQ.name,
+                                            ctx.getString(R.string.ai_provider_gemini) to helium314.keyboard.latin.utils.ProofreadService.AIProvider.GEMINI.name,
+                                            ctx.getString(R.string.ai_provider_openai) to helium314.keyboard.latin.utils.ProofreadService.AIProvider.OPENAI.name
+                                        ), helium314.keyboard.latin.utils.ProofreadService.AIProvider.GEMINI.name)
+                                    }.Preference()
+                                    helium314.keyboard.settings.Setting(ctx, helium314.keyboard.settings.SettingsWithoutKey.GEMINI_API_KEY, R.string.gemini_api_key_title, R.string.gemini_api_key_summary) { setting ->
+                                        TextInputPreference(setting, "")
+                                    }.Preference()
+                                }
+                                if (aiConfigured) {
+                                    Icon(painterResource(R.drawable.ic_setup_check), null, Modifier.align(Alignment.CenterEnd).padding(end = 16.dp), tint = MaterialTheme.colorScheme.primary)
+                                }
+                            }
                         } else {
                             Text("AI features are not available in this build flavor.", color = textColorDim)
                         }
                     }
                 } else if (step == 5) {
                     Step(
-                        step,
+                        5,
                         "Floating Keyboard",
                         "Enable floating keyboard by granting the 'Display over other apps' permission.",
                         "Next",
                         painterResource(R.drawable.sym_keyboard_language_switch),
-                        { step++ }
+                        { step++ },
+                        { step++ },
+                        { step-- }
                     ) {
                         val canDrawOverlays = AndroidSettings.canDrawOverlays(ctx)
                         val overlayLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
-                        if (!canDrawOverlays) {
-                            Text("Permission required. Tap here to grant.", Modifier.clickable {
+                        Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium).clickable {
+                            if (!canDrawOverlays) {
                                 val intent = Intent(AndroidSettings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${ctx.packageName}"))
                                 overlayLauncher.launch(intent)
-                            }.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.primary)
-                        } else {
-                            Text("Permission granted.", color = textColor)
+                            }
+                        }.padding(16.dp)) {
+                            if (!canDrawOverlays) {
+                                Text("Permission required. Tap here to grant.", color = MaterialTheme.colorScheme.primary)
+                            } else {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(painterResource(R.drawable.ic_setup_check), null, Modifier.padding(end = 8.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Text("Permission granted.", color = textColor)
+                                }
+                            }
                         }
                     }
                 } else if (step == 6) {
                     Step(
-                        step,
+                        6,
                         "Screenshot Suggestions",
-                        "Suggest recently taken screenshots in the suggestion strip.",
+                        "Suggest recently taken screenshots in the suggestion strip. Note: This permission also allows saving screenshots to the clipboard.",
                         "Next",
                         painterResource(R.drawable.sym_keyboard_language_switch),
-                        { step++ }
+                        { step++ },
+                        { step++ },
+                        { step-- }
                     ) {
-                        helium314.keyboard.settings.Setting(ctx, Settings.PREF_SUGGEST_SCREENSHOTS, R.string.suggest_screenshots, R.string.suggest_screenshots_summary) { setting ->
-                            val activity = ctx.getActivity() ?: return@Setting
-                            val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                Manifest.permission.READ_MEDIA_IMAGES
-                            } else {
-                                Manifest.permission.READ_EXTERNAL_STORAGE
+                        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            Manifest.permission.READ_MEDIA_IMAGES
+                        } else {
+                            Manifest.permission.READ_EXTERNAL_STORAGE
+                        }
+                        val granted = PermissionsUtil.checkAllPermissionsGranted(ctx.getActivity(), permission)
+                        val screenshotsEnabled = ctx.prefs().getBoolean(Settings.PREF_SUGGEST_SCREENSHOTS, Defaults.PREF_SUGGEST_SCREENSHOTS)
+
+                        Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium)) {
+                            helium314.keyboard.settings.Setting(ctx, Settings.PREF_SUGGEST_SCREENSHOTS, R.string.suggest_screenshots, R.string.suggest_screenshots_summary) { setting ->
+                                val activity = ctx.getActivity() ?: return@Setting
+                                var isGranted by remember { mutableStateOf(PermissionsUtil.checkAllPermissionsGranted(activity, permission)) }
+                                val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+                                    isGranted = it
+                                    if (isGranted)
+                                        activity.prefs().edit { putBoolean(setting.key, true) }
+                                }
+                                SwitchPreference(setting, Defaults.PREF_SUGGEST_SCREENSHOTS, allowCheckedChange = {
+                                    if (it && !isGranted) {
+                                        permLauncher.launch(permission)
+                                        false
+                                    } else true
+                                })
+                            }.Preference()
+                            
+                            if (granted && screenshotsEnabled) {
+                                Icon(painterResource(R.drawable.ic_setup_check), null, Modifier.align(Alignment.CenterEnd).padding(end = 64.dp), tint = MaterialTheme.colorScheme.primary)
                             }
-                            var granted by remember { mutableStateOf(PermissionsUtil.checkAllPermissionsGranted(activity, permission)) }
-                            val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-                                granted = it
-                                if (granted)
-                                    activity.prefs().edit { putBoolean(setting.key, true) }
-                            }
-                            SwitchPreference(setting, Defaults.PREF_SUGGEST_SCREENSHOTS, allowCheckedChange = {
-                                if (it && !granted) {
-                                    permLauncher.launch(permission)
-                                    false
-                                } else true
-                            })
-                        }.Preference()
+                        }
                     }
                 } else if (step == 7) {
                     Step(
-                        step,
+                        7,
                         "Keyboard Height",
-                        "Adjust the height of the keyboard.",
+                        "Adjust the height of the keyboard. Recommended: 77% for more square keys, 100% for taller keys.",
                         "Next",
                         painterResource(R.drawable.sym_keyboard_language_switch),
-                        { step++ }
+                        { step++ },
+                        { step++ },
+                        { step-- }
                     ) {
-                        helium314.keyboard.settings.Setting(ctx, Settings.PREF_KEYBOARD_HEIGHT_SCALE_PREFIX, R.string.prefs_keyboard_height_scale) { setting ->
-                            MultiSliderPreference(
-                                name = setting.title,
-                                baseKey = setting.key,
-                                dimensions = listOf(stringResource(R.string.landscape)),
-                                defaults = Defaults.PREF_KEYBOARD_HEIGHT_SCALE,
-                                range = 0.3f..1.5f,
-                                description = { "${(100 * it).toInt()}%" }
-                            ) {}
-                        }.Preference()
+                        val heightSet = ctx.prefs().contains(Settings.PREF_KEYBOARD_HEIGHT_SCALE_PREFIX + "0")
+
+                        Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium)) {
+                            helium314.keyboard.settings.Setting(ctx, Settings.PREF_KEYBOARD_HEIGHT_SCALE_PREFIX, R.string.prefs_keyboard_height_scale) { setting ->
+                                MultiSliderPreference(
+                                    name = setting.title,
+                                    baseKey = setting.key,
+                                    dimensions = listOf(stringResource(R.string.landscape)),
+                                    defaults = Defaults.PREF_KEYBOARD_HEIGHT_SCALE,
+                                    range = 0.3f..1.5f,
+                                    description = { "${(100 * it).toInt()}%" }
+                                ) {}
+                            }.Preference()
+                            
+                            if (heightSet) {
+                                Icon(painterResource(R.drawable.ic_setup_check), null, Modifier.align(Alignment.TopEnd).padding(top = 16.dp, end = 16.dp), tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
                     }
                 } else { // step 8
                     Step(
-                        step,
+                        8,
                         stringResource(R.string.setup_step3_title),
                         stringResource(R.string.setup_step3_instruction, appName),
                         stringResource(R.string.setup_finish_action),
                         painterResource(R.drawable.ic_setup_check),
-                        finish
+                        finish,
+                        null,
+                        { step-- }
                     )
                 }
             }
