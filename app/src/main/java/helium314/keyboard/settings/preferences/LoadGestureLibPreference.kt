@@ -48,6 +48,8 @@ fun LoadGestureLibPreference(
     title: String,
     summary: String? = null,
     @DrawableRes icon: Int? = null,
+    restartOnSuccess: Boolean = true,
+    onSuccess: (() -> Unit)? = null,
 ) {
     var showDialog by rememberSaveable { mutableStateOf(false) }
     var isDownloading by rememberSaveable { mutableStateOf(false) }
