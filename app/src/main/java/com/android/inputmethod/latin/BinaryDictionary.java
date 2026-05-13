@@ -39,7 +39,6 @@ import java.util.Map;
 /**
  * Implements a static, compacted, binary dictionary of standard words.
  */
-// TODO: All methods which should be locked need to have a suffix "Locked".
 public final class BinaryDictionary extends Dictionary {
     private static final String TAG = BinaryDictionary.class.getSimpleName();
 
@@ -88,13 +87,17 @@ public final class BinaryDictionary extends Dictionary {
     // {@code mDicTraverseSessions}.
     private DicTraverseSession getTraverseSession(final int traverseSessionId) {
         synchronized(mDicTraverseSessions) {
-            DicTraverseSession traverseSession = mDicTraverseSessions.get(traverseSessionId);
-            if (traverseSession == null) {
-                traverseSession = new DicTraverseSession(mLocale, mNativeDict, mDictSize);
-                mDicTraverseSessions.put(traverseSessionId, traverseSession);
-            }
-            return traverseSession;
+            return getTraverseSessionLocked(traverseSessionId);
         }
+    }
+
+    private DicTraverseSession getTraverseSessionLocked(final int traverseSessionId) {
+        DicTraverseSession traverseSession = mDicTraverseSessions.get(traverseSessionId);
+        if (traverseSession == null) {
+            traverseSession = new DicTraverseSession(mLocale, mNativeDict, mDictSize);
+            mDicTraverseSessions.put(traverseSessionId, traverseSession);
+        }
+        return traverseSession;
     }
 
     /**
@@ -624,19 +627,25 @@ public final class BinaryDictionary extends Dictionary {
     @Override
     public void close() {
         synchronized (mDicTraverseSessions) {
-            final int sessionsSize = mDicTraverseSessions.size();
-            for (int index = 0; index < sessionsSize; ++index) {
-                final DicTraverseSession traverseSession = mDicTraverseSessions.valueAt(index);
-                if (traverseSession != null) {
-                    traverseSession.close();
-                }
-            }
-            mDicTraverseSessions.clear();
+            closeDicTraverseSessionsLocked();
         }
-        closeInternalLocked();
+        synchronized (this) {
+            closeInternalLocked();
+        }
     }
 
-    private synchronized void closeInternalLocked() {
+    private void closeDicTraverseSessionsLocked() {
+        final int sessionsSize = mDicTraverseSessions.size();
+        for (int index = 0; index < sessionsSize; ++index) {
+            final DicTraverseSession traverseSession = mDicTraverseSessions.valueAt(index);
+            if (traverseSession != null) {
+                traverseSession.close();
+            }
+        }
+        mDicTraverseSessions.clear();
+    }
+
+    private void closeInternalLocked() {
         if (mNativeDict != 0) {
             closeNative(mNativeDict);
             mNativeDict = 0;
@@ -647,7 +656,9 @@ public final class BinaryDictionary extends Dictionary {
     @Override
     protected void finalize() throws Throwable {
         try {
-            closeInternalLocked();
+            synchronized (this) {
+                closeInternalLocked();
+            }
         } finally {
             super.finalize();
         }
