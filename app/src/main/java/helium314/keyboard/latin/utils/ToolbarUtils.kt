@@ -170,7 +170,7 @@ val defaultToolbarPref by lazy {
 val defaultPinnedToolbarPref by lazy {
     val pinnedDefault = when (helium314.keyboard.latin.BuildConfig.FLAVOR) {
         "offlinelite" -> listOf(CLIPBOARD)
-        else -> listOf(CLIPBOARD, PROOFREAD)
+        else -> listOf(CLIPBOARD, PROOFREAD, TOUCHPAD, FLOATING)
     }
 
     entries.filterNot { it in excludedKeys }.joinToString(Separators.ENTRY) {
