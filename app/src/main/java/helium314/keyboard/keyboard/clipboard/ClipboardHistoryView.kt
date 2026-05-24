@@ -488,11 +488,16 @@ class ClipboardHistoryView @JvmOverloads constructor(
     }
 
     override fun onKeyUp(clipId: Long) {
-        val clipContent = clipboardHistoryManager.getHistoryEntryContent(clipId)
-        if (clipContent?.imageUri != null) {
-            keyboardActionListener.onImageSelected(clipContent.imageUri!!)
+        val clipContent = clipboardHistoryManager.getHistoryEntryContent(clipId) ?: return
+        if (clipContent.imageUri != null) {
+            keyboardActionListener.onImageSelected(clipContent.imageUri)
         } else {
-            keyboardActionListener.onTextInput(clipContent?.text)
+            val text = clipContent.text
+            if (text.length > 1000) {
+                clipboardHistoryManager.pasteLargeText(text)
+            } else {
+                keyboardActionListener.onTextInput(text)
+            }
         }
         keyboardActionListener.onReleaseKey(KeyCode.NOT_SPECIFIED, false)
         if (Settings.getValues().mAlphaAfterClipHistoryEntry)

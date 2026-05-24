@@ -1,1 +1,3 @@
 - Fix F-Droid reproducible build packaging discrepancy
+- Fix clipboard text truncation for large texts by using native context paste
+- Add customizable tags to Custom AI Keys in settings, showing as a themed capsule on the toolbar button

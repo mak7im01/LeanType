@@ -23,6 +23,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.EnumMap
 import java.util.Locale
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.Typeface
+import android.graphics.drawable.Drawable
+import android.graphics.PixelFormat
+import android.graphics.Color
+import android.graphics.ColorFilter
 
 fun createToolbarKey(context: Context, key: ToolbarKey): ImageButton {
     val button = ImageButton(context, null, R.attr.suggestionWordStyle)
@@ -32,8 +40,68 @@ fun createToolbarKey(context: Context, key: ToolbarKey): ImageButton {
     button.tag = key
     button.contentDescription = key.name.lowercase().getStringResourceOrName("", context)
     setToolbarButtonActivatedState(button)
-    button.setImageDrawable(KeyboardIconsSet.instance.getNewDrawable(key.name, context))
+    
+    val index = if (key.name.startsWith("CUSTOM_AI_")) {
+        key.name.removePrefix("CUSTOM_AI_").toIntOrNull()
+    } else null
+    
+    val showTags = context.prefs().getBoolean("pref_custom_ai_show_tags_on_toolbar", false)
+    val tag = if (index != null) {
+        context.prefs().getString("pref_custom_ai_tag_$index", "") ?: ""
+    } else ""
+    
+    if (showTags && tag.isNotBlank()) {
+        button.setImageDrawable(TagDrawable(tag.take(3).uppercase(Locale.US)))
+    } else {
+        button.setImageDrawable(KeyboardIconsSet.instance.getNewDrawable(key.name, context))
+    }
     return button
+}
+
+class TagDrawable(private val text: String) : Drawable() {
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textAlign = Paint.Align.CENTER
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    }
+
+    private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.STROKE
+        strokeWidth = 3f
+    }
+
+    override fun draw(canvas: Canvas) {
+        val bounds = bounds
+        val cx = bounds.exactCenterX()
+        val cy = bounds.exactCenterY()
+
+        // Scaled text size based on height
+        paint.textSize = bounds.height() * 0.4f
+        
+        // Border capsule
+        val rect = RectF(bounds)
+        rect.inset(4f, 4f)
+        val rx = bounds.height() * 0.15f
+        canvas.drawRoundRect(rect, rx, rx, borderPaint)
+
+        // Draw centered text
+        val textHeight = paint.descent() - paint.ascent()
+        val textOffset = textHeight / 2 - paint.descent()
+        canvas.drawText(text, cx, cy + textOffset, paint)
+    }
+
+    override fun setAlpha(alpha: Int) {
+        paint.alpha = alpha
+        borderPaint.alpha = alpha
+    }
+
+    override fun setColorFilter(colorFilter: ColorFilter?) {
+        paint.colorFilter = colorFilter
+        borderPaint.colorFilter = colorFilter
+    }
+
+    override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
 }
 
 fun setToolbarButtonsActivatedStateOnPrefChange(buttonsGroup: ViewGroup, key: String?) {
