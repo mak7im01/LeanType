@@ -489,7 +489,13 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
     override fun onSharedPreferenceChanged(prefs: SharedPreferences, key: String?) {
         setToolbarButtonsActivatedStateOnPrefChange(pinnedKeys, key)
         setToolbarButtonsActivatedStateOnPrefChange(toolbar, key)
-        if (key == Settings.PREF_PINNED_TOOLBAR_KEYS || key == Settings.PREF_TOOLBAR_KEYS || key == Settings.PREF_QUICK_PIN_TOOLBAR_KEYS || key == Settings.PREF_AUTO_HIDE_PINNED_KEYS || key == Settings.PREF_SPLIT_TOOLBAR) {
+        if (key == Settings.PREF_PINNED_TOOLBAR_KEYS 
+            || key == Settings.PREF_TOOLBAR_KEYS 
+            || key == Settings.PREF_QUICK_PIN_TOOLBAR_KEYS 
+            || key == Settings.PREF_AUTO_HIDE_PINNED_KEYS 
+            || key == Settings.PREF_SPLIT_TOOLBAR
+            || key == "pref_custom_ai_show_tags_on_toolbar"
+            || key?.startsWith("pref_custom_ai_tag_") == true) {
             rebuildToolbarKeys()
             // Update visibility with auto-hide logic
             setToolbarVisibility(isToolbarManuallyOpen, false)
